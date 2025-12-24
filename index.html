@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>雪山庄事件</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- 标题画面 -->
+        <div id="title-screen" class="screen active">
+            <div class="title-content">
+                <h1>雪山庄事件</h1>
+                <p class="subtitle">～密室中的真相～</p>
+                <button id="start-btn" class="menu-btn">开始游戏</button>
+                <button id="continue-btn" class="menu-btn hidden">继续游戏</button>
+            </div>
+        </div>
+
+        <!-- 游戏主画面 -->
+        <div id="game-screen" class="screen">
+            <!-- 背景图片 -->
+            <div id="background"></div>
+            
+            <!-- 角色立绘区域 -->
+            <div id="character-area">
+                <div id="character-left" class="character"></div>
+                <div id="character-center" class="character"></div>
+                <div id="character-right" class="character"></div>
+            </div>
+
+            <!-- 线索收集UI -->
+            <div id="clue-panel" class="hidden">
+                <h3>📋 收集的线索</h3>
+                <ul id="clue-list"></ul>
+                <button id="close-clue-btn">关闭</button>
+            </div>
+
+            <!-- 对话框 -->
+            <div id="dialog-box">
+                <div id="speaker-name"></div>
+                <div id="dialog-text"></div>
+                <div id="voice-indicator" class="hidden">🔊</div>
+            </div>
+
+            <!-- 选项区域 -->
+            <div id="choices-area" class="hidden"></div>
+
+            <!-- 控制按钮 -->
+            <div id="control-bar">
+                <button id="back-btn" class="control-btn">返回</button>
+                <button id="clue-btn" class="control-btn">线索</button>
+                <button id="auto-btn" class="control-btn">自动</button>
+                <button id="skip-btn" class="control-btn">跳过</button>
+            </div>
+        </div>
+
+        <!-- 结局画面 -->
+        <div id="ending-screen" class="screen">
+            <div id="ending-content">
+                <h2 id="ending-title"></h2>
+                <p id="ending-text"></p>
+                <button id="restart-btn" class="menu-btn">重新开始</button>
+            </div>
+        </div>
+
+        <!-- 加载提示 -->
+        <div id="loading-overlay" class="hidden">
+            <div class="loading-spinner"></div>
+            <p>生成中...</p>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
