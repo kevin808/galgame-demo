@@ -1,5 +1,150 @@
 // 雪山庄杀人事件 - 游戏引擎（预加载资源版本）
 
+// 相机控制器 - 处理全景背景的拖拽和移动
+class CameraController {
+    constructor(backgroundElement) {
+        this.background = backgroundElement;
+        this.isDragging = false;
+        this.startX = 0;
+        this.currentX = 0;
+        this.targetX = 0;
+        this.velocity = 0;
+        this.minX = 0;  // 最左边界
+        this.maxX = 0;  // 最右边界
+        this.enabled = false;
+
+        this.bindEvents();
+        this.startAnimation();
+    }
+
+    // 启用相机控制（当背景是宽幅图时调用）
+    enable(backgroundWidth, viewportWidth) {
+        this.enabled = true;
+        this.maxX = Math.max(0, backgroundWidth - viewportWidth);
+        this.minX = 0;
+        // 初始位置居中
+        this.currentX = this.maxX / 2;
+        this.targetX = this.currentX;
+        this.updateBackground();
+    }
+
+    // 禁用相机控制（普通背景）
+    disable() {
+        this.enabled = false;
+        this.currentX = 0;
+        this.targetX = 0;
+        this.updateBackground();
+    }
+
+    bindEvents() {
+        // 鼠标拖拽
+        this.background.addEventListener('mousedown', (e) => this.onMouseDown(e));
+        document.addEventListener('mousemove', (e) => this.onMouseMove(e), { passive: false });
+        document.addEventListener('mouseup', () => this.onMouseUp());
+
+        // 触摸拖拽（移动端支持）
+        this.background.addEventListener('touchstart', (e) => this.onTouchStart(e), { passive: false });
+        document.addEventListener('touchmove', (e) => this.onTouchMove(e), { passive: false });
+        document.addEventListener('touchend', () => this.onMouseUp());
+
+        // 双击复位
+        this.background.addEventListener('dblclick', () => this.resetPosition());
+
+        // 键盘控制
+        document.addEventListener('keydown', (e) => this.onKeyDown(e));
+    }
+
+    onMouseDown(e) {
+        if (!this.enabled) return;
+        this.isDragging = true;
+        this.startX = e.clientX - this.currentX;
+        this.background.style.cursor = 'grabbing';
+    }
+
+    onMouseMove(e) {
+        if (!this.enabled || !this.isDragging) return;
+        e.preventDefault();
+        this.targetX = e.clientX - this.startX;
+        this.clampPosition();
+    }
+
+    onMouseUp() {
+        if (!this.enabled) return;
+        this.isDragging = false;
+        this.background.style.cursor = 'grab';
+    }
+
+    onTouchStart(e) {
+        if (!this.enabled) return;
+        this.isDragging = true;
+        this.startX = e.touches[0].clientX - this.currentX;
+    }
+
+    onTouchMove(e) {
+        if (!this.enabled || !this.isDragging) return;
+        e.preventDefault();
+        this.targetX = e.touches[0].clientX - this.startX;
+        this.clampPosition();
+    }
+
+    onKeyDown(e) {
+        if (!this.enabled) return;
+
+        const moveSpeed = 50; // 键盘移动速度
+
+        switch(e.key) {
+            case 'ArrowLeft':
+            case 'a':
+            case 'A':
+                this.targetX = Math.max(this.minX, this.targetX - moveSpeed);
+                e.preventDefault();
+                break;
+            case 'ArrowRight':
+            case 'd':
+            case 'D':
+                this.targetX = Math.min(this.maxX, this.targetX + moveSpeed);
+                e.preventDefault();
+                break;
+        }
+    }
+
+    // 限制位置在边界内
+    clampPosition() {
+        this.targetX = Math.max(this.minX, Math.min(this.maxX, this.targetX));
+    }
+
+    // 复位到中心位置
+    resetPosition() {
+        if (!this.enabled) return;
+        this.targetX = this.maxX / 2;
+    }
+
+    // 平滑动画循环
+    startAnimation() {
+        const animate = () => {
+            if (this.enabled) {
+                // 平滑插值（easing）
+                const diff = this.targetX - this.currentX;
+                this.currentX += diff * 0.1; // 0.1 是平滑系数，值越小越平滑
+
+                // 如果差距很小就直接设置，避免无限接近
+                if (Math.abs(diff) < 0.1) {
+                    this.currentX = this.targetX;
+                }
+
+                this.updateBackground();
+            }
+            requestAnimationFrame(animate);
+        };
+        animate();
+    }
+
+    // 更新背景位置
+    updateBackground() {
+        this.background.style.backgroundPosition = `-${this.currentX}px center`;
+    }
+}
+
 class GameEngine {
     constructor() {
         this.currentScene = 0;
@@ -13,9 +158,11 @@ class GameEngine {
         this.currentAudio = null;
         this.currentBGM = null;
         this.assetMap = null;
+        this.camera = null; // 相机控制器
 
         this.initElements();
         this.bindEvents();
+        this.initCamera(); // 初始化相机控制器
     }
 
     initElements() {
@@ -75,6 +222,12 @@ class GameEngine {
                 this.advance();
             }
         });
+    }
+
+    initCamera() {
+        // 初始化相机控制器，传入背景元素
+        this.camera = new CameraController(this.elements.background);
+        console.log('相机控制器已初始化');
     }
 
     async startGame(loadSave = false) {
@@ -284,9 +437,43 @@ class GameEngine {
 
     setBackground(imageId) {
         const imagePath = this.assetMap?.images?.[imageId];
-        
+
         if (imagePath) {
+            // 设置背景图片
             this.elements.background.style.backgroundImage = `url(${imagePath})`;
+
+            // 加载图片以检测是否为宽幅图
+            const img = new Image();
+            img.onload = () => {
+                const viewportWidth = window.innerWidth;
+                const viewportHeight = window.innerHeight;
+
+                // 计算按高度100%缩放后的实际宽度
+                const aspectRatio = img.naturalWidth / img.naturalHeight;
+                let scaledWidth = viewportHeight * aspectRatio;
+
+                // 如果图片宽度不够（小于视口2倍），放大到至少2倍以提供移动空间
+                const minWidth = viewportWidth * 2; // 最小宽度为视口的2倍
+                if (scaledWidth < minWidth) {
+                    // 按宽度缩放
+                    scaledWidth = minWidth;
+                    const scaledHeight = minWidth / aspectRatio;
+                    this.elements.background.style.backgroundSize = `${minWidth}px auto`;
+                    console.log(`背景放大: 设置为${Math.round(minWidth)}px宽，启用视角移动`);
+                } else {
+                    // 保持高度100%
+                    this.elements.background.style.backgroundSize = `auto 100%`;
+                    console.log(`宽幅背景: 原始${img.naturalWidth}px，缩放后${Math.round(scaledWidth)}px，启用视角移动`);
+                }
+
+                // 启用相机控制
+                this.camera.enable(scaledWidth, viewportWidth);
+            };
+            img.onerror = () => {
+                console.warn('背景图片加载失败，禁用相机控制');
+                this.camera.disable();
+            };
+            img.src = imagePath;
         } else {
             // 使用渐变色作为后备
             const gradients = {
@@ -295,6 +482,7 @@ class GameEngine {
                 'scene3': 'linear-gradient(135deg, #1a0a0a 0%, #3d1a1a 50%, #2a1515 100%)'
             };
             this.elements.background.style.background = gradients[imageId] || '#1a1a2e';
+            this.camera.disable();
         }
     }
 
